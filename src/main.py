@@ -1,15 +1,13 @@
 import os
 import sys
 import logging
-# DON'T CHANGE THIS !!!
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
-from src.models.user import db
-from src.routes.user import user_bp
-from src.routes.video import video_bp, init_video_services
-from src.config import get_config, init_config
+# from src.models.user import db
+# from src.routes.user import user_bp
+from video import video_bp, init_video_services
+from config import init_config
 
 # Initialize configuration
 config = init_config()
@@ -24,7 +22,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
+app = Flask(__name__, static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static'))
 
 # Apply Flask configuration
 flask_config = config.get_flask_config()
@@ -41,22 +39,23 @@ if config_errors:
     for section, errors in config_errors.items():
         for error in errors:
             logger.error(f"{section}: {error}")
+else:
+    try:
+        # Initialize video services with full configuration
+        init_video_services(config.get_all())
+        logger.info("Video services initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize video services: {e}")
 
-    # Initialize video services with full configuration
-    init_video_services(config.get_all())
-    logger.info("Video services initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize video services: {e}")
-
-app.register_blueprint(user_bp, url_prefix='/api')
+# app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(video_bp, url_prefix='/api')
 
 # uncomment if you need to use database
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db.init_app(app)
-with app.app_context():
-    db.create_all()
+# app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database', 'app.db')}"
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# db.init_app(app)
+# with app.app_context():
+#     db.create_all()
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -73,10 +72,6 @@ def serve(path):
             return send_from_directory(static_folder_path, 'index.html')
         else:
             return "index.html not found", 404
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
 
 
 # Configuration endpoint
@@ -109,4 +104,3 @@ if __name__ == '__main__':
         port=flask_config.get('port', 5000),
         debug=flask_config.get('debug', False)
     )
-

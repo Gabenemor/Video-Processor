@@ -4,7 +4,7 @@ import os
 import asyncio
 from typing import Dict, Any, Optional, List
 from supabase import create_client, Client
-from .base import BaseStorage, StorageError
+from base import BaseStorage, StorageError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -325,4 +325,3 @@ class SupabaseStorage(BaseStorage):
     def _create_bucket_sync(self):
         """Synchronous bucket creation."""
         return self.storage.create_bucket(self.bucket_name, options={'public': False})
-

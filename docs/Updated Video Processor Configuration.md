@@ -49,7 +49,7 @@ LOG_FILE=/var/log/video-processor.log
 ### Required Environment Variables
 
 #### Supabase Configuration
-- **SUPABASE_URL**: Your Supabase project URL (found in Project Settings > API)
+- **SUPABASE_URL**: Your Supabase project URL. **Important**: This should be in the format `https://<your-project-ref>.supabase.co`, which you can find in your Supabase project's **Settings > API > Project URL**. Do not use the dashboard URL.
 - **SUPABASE_SERVICE_ROLE_KEY**: Your service role key (found in Project Settings > API)
 - **SUPABASE_BUCKET_NAME**: Set to `processed-videos` (this is the bucket where videos will be stored)
 
@@ -337,4 +337,3 @@ The application validates configuration on startup and provides detailed error m
 4. **Size Limits**: Configure appropriate file size limits
 
 This configuration provides a robust, scalable video processing system with proxy support for bot detection bypass and comprehensive error logging.
-

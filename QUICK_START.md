@@ -16,6 +16,7 @@ nano .env
 
 ```bash
 # Supabase Configuration
+# Important: Use the API URL from Project Settings > API, not the dashboard URL
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 SUPABASE_BUCKET_NAME=processed-videos
@@ -168,4 +169,3 @@ video_processor/
 ---
 
 **Ready to process videos with proxy support and direct Supabase upload!** 🎬
-

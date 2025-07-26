@@ -9,9 +9,9 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.exceptions import BadRequest
 import logging
 
-from src.video_downloader import VideoDownloader, VideoDownloadError
-from src.storage.factory import StorageFactory
-from src.storage.base import StorageError
+from video_downloader import VideoDownloader, VideoDownloadError
+from factory import StorageFactory
+from base import StorageError
 
 logger = logging.getLogger(__name__)
 
@@ -121,17 +121,22 @@ def process_video():
     """Download video and upload to storage."""
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"[{request_id}] Video processing request received")
-    
+
     try:
         data = request.get_json()
         if not data or 'url' not in data:
             logger.error(f"[{request_id}] Missing URL in request")
             return jsonify({'error': 'URL is required', 'request_id': request_id}), 400
-        
+
         url = data['url']
         custom_options = data.get('options', {})
-        logger.info(f"[{request_id}] Processing video URL: {url}")
         
+        # Use user-provided ID or generate a new one
+        processing_id = data.get('id', str(uuid.uuid4()))
+        logger.info(f"[{request_id}] Using processing ID: {processing_id}")
+
+        logger.info(f"[{request_id}] Processing video URL: {url}")
+
         # Validate URL
         if not url.startswith(('http://', 'https://')):
             logger.error(f"[{request_id}] Invalid URL format: {url}")
@@ -140,11 +145,7 @@ def process_video():
                 'details': 'URL must start with http:// or https://',
                 'request_id': request_id
             }), 400
-        
-        # Generate processing ID
-        processing_id = str(uuid.uuid4())
-        logger.info(f"[{request_id}] Generated processing ID: {processing_id}")
-        
+
         # Process video asynchronously
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -212,10 +213,11 @@ async def _process_video_async(url: str, processing_id: str, custom_options: dic
         logger.info(f"[{request_id}] Uploading video file to: {video_key}")
         
         video_upload_result = await storage_provider.upload_file(
-            video_file, 
+            video_file,
             video_key,
             metadata={
                 'processing_id': processing_id,
+                'user_id': processing_id,
                 'original_url': url,
                 'title': video_info.get('title', ''),
                 'uploader': video_info.get('uploader', ''),
@@ -597,4 +599,3 @@ def health_check():
             'error': str(e),
             'request_id': request_id
         }), 503
-

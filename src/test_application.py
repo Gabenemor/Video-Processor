@@ -11,13 +11,10 @@ import tempfile
 import json
 from unittest.mock import Mock, patch
 
-# Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from src.video_downloader import VideoDownloader, VideoDownloadError
-from src.storage.factory import StorageFactory
-from src.storage.base import BaseStorage, StorageError
-from src.config import Config
+from video_downloader import VideoDownloader, VideoDownloadError
+from factory import StorageFactory
+from base import BaseStorage, StorageError
+from config import Config
 
 
 class MockStorage(BaseStorage):
@@ -398,4 +395,3 @@ async def main():
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
-

@@ -11,9 +11,6 @@ import json
 import time
 from datetime import datetime
 
-# Add src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
 def test_api_endpoint(url, method='GET', data=None, expected_status=200):
     """Test an API endpoint and return the response."""
     print(f"\n{'='*60}")
@@ -210,4 +207,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
