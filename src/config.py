@@ -29,7 +29,7 @@ class Config:
                 'secret_key': os.getenv('FLASK_SECRET_KEY', 'asdf#FGSgvasgf$5$WGT'),
                 'debug': os.getenv('FLASK_DEBUG', 'False').lower() == 'true',
                 'host': os.getenv('FLASK_HOST', '0.0.0.0'),
-                'port': int(os.getenv('FLASK_PORT', '5000')),
+                'port': int(os.getenv('PORT', '8080')),
             },
             
             # Storage configuration
@@ -274,4 +274,3 @@ def init_config(config_file: Optional[str] = None) -> Config:
     global config
     config = Config(config_file)
     return config
-

@@ -76,12 +76,12 @@ COPY DEPLOYMENT.md ./DEPLOYMENT.md
 RUN mkdir -p /tmp/video_downloads
 
 # Expose the port the app runs on
-EXPOSE 5000
+EXPOSE 8080
 
 # Run the application
 # Cloud Run automatically sets the PORT environment variable.
 # We use 0.0.0.0 to listen on all available network interfaces.
-# The Flask app is configured to read FLASK_PORT from environment variables.
+# The Flask app is configured to read the PORT from environment variables.
 CMD ["python", "src/main.py"]
 ```
 
@@ -90,7 +90,7 @@ CMD ["python", "src/main.py"]
 - `RUN apt-get install -y ffmpeg`: Installs `ffmpeg`, which `yt-dlp` often relies on for various video processing tasks.
 - `COPY requirements.txt .` and `RUN pip install -r requirements.txt`: Installs Python dependencies.
 - `COPY src/ ./src/`: Copies your application code.
-- `EXPOSE 5000`: Informs Docker that the container listens on port 5000. Cloud Run will automatically map this.
+- `EXPOSE 8080`: Informs Docker that the container listens on port 8080. Cloud Run will automatically map this.
 - `CMD ["python", "src/main.py"]`: Specifies the command to run your Flask application when the container starts.
 
 ## 4. Manual Deployment to Cloud Run
@@ -130,7 +130,7 @@ gcloud run deploy video-processor \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \
-  --port 5000 \
+  --port 8080 \
   --set-env-vars \
   FLASK_SECRET_KEY="YOUR_FLASK_SECRET_KEY" \
   SUPABASE_URL="YOUR_SUPABASE_URL" \
@@ -151,7 +151,7 @@ gcloud run deploy video-processor \
 **Important Considerations:**
 - **`--region`**: Choose a region close to your users or other Google Cloud resources.
 - **`--allow-unauthenticated`**: Allows public access to your service. For private services, use `--no-allow-unauthenticated` and configure IAM permissions.
-- **`--port 5000`**: Matches the `EXPOSE` port in your `Dockerfile` and the `FLASK_PORT` in your application configuration.
+- **`--port 8080`**: Matches the `EXPOSE` port in your `Dockerfile` and the `PORT` in your application configuration.
 - **`--set-env-vars`**: This is where you pass your environment variables. **For sensitive data like API keys and passwords, it is highly recommended to use Google Cloud Secret Manager instead of setting them directly here.** See Section 6 for more details.
 
 ## 5. Automated Deployment with Google Cloud Build
@@ -197,7 +197,7 @@ steps:
       'managed',
       '--allow-unauthenticated', # Change to '--no-allow-unauthenticated' for private service
       '--port',
-      '5000',
+      '8080',
       '--set-env-vars',
       'FLASK_SECRET_KEY=${_FLASK_SECRET_KEY}',
       'SUPABASE_URL=${_SUPABASE_URL}',
@@ -328,7 +328,7 @@ Here's how the relevant part of your `cloudbuild.yaml` would look:
       'managed',
       '--allow-unauthenticated', # Change to '--no-allow-unauthenticated' for private service
       '--port',
-      '5000',
+      '8080',
       '--set-env-vars',
       'VIDEO_DOWNLOAD_DIR=/tmp/video_downloads',
       'MAX_FILE_SIZE=1073741824',
@@ -382,4 +382,3 @@ availableSecrets:
 **Important:** Replace `YOUR_PROJECT_ID` with your actual Google Cloud Project ID in the `version` paths.
 
 By following these steps, you can securely deploy your video processing application to Google Cloud Run, leveraging Docker for containerization and Google Cloud Build for automated CI/CD, while keeping your sensitive credentials safe with Secret Manager.
-
