@@ -50,7 +50,7 @@ class Config:
             'proxy': {
                 'webshare_username': os.getenv('WEBSHARE_USERNAME'),
                 'webshare_password': os.getenv('WEBSHARE_PASSWORD'),
-                'webshare_endpoint': os.getenv('WEBSHARE_ENDPOINT', 'rotating-residential.webshare.io:9000'),
+                'webshare_endpoint': os.getenv('WEBSHARE_ENDPOINT', 'p.webshare.io:80'),
                 'use_proxy_for_info_extraction': os.getenv('USE_PROXY_FOR_INFO_EXTRACTION', 'true').lower() == 'true',
             },
             
