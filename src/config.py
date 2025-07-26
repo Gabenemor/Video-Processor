@@ -183,10 +183,12 @@ class Config:
             storage_errors.append("Storage provider not specified")
         elif provider == 'supabase':
             config = storage_config.get('config', {})
-            if not config.get('url'):
-                storage_errors.append("Supabase URL not configured")
-            if not config.get('key'):
-                storage_errors.append("Supabase service role key not configured")
+            if not config.get('url') or not config['url'].strip():
+                storage_errors.append("Supabase URL not configured or empty")
+            if not config.get('key') or not config['key'].strip():
+                storage_errors.append("Supabase service role key not configured or empty")
+            if not config.get('bucket_name') or not config['bucket_name'].strip():
+                storage_errors.append("Supabase bucket name not configured or empty")
         elif provider == 's3':
             config = storage_config.get('config', {})
             if not config.get('access_key'):
@@ -204,12 +206,12 @@ class Config:
         proxy_config = self.get_proxy_config()
         
         if proxy_config.get('use_proxy_for_info_extraction', False):
-            if not proxy_config.get('webshare_username'):
-                proxy_errors.append("Webshare username not configured")
-            if not proxy_config.get('webshare_password'):
-                proxy_errors.append("Webshare password not configured")
-            if not proxy_config.get('webshare_endpoint'):
-                proxy_errors.append("Webshare endpoint not configured")
+            if not proxy_config.get('webshare_username') or not proxy_config['webshare_username'].strip():
+                proxy_errors.append("Webshare username not configured or empty")
+            if not proxy_config.get('webshare_password') or not proxy_config['webshare_password'].strip():
+                proxy_errors.append("Webshare password not configured or empty")
+            if not proxy_config.get('webshare_endpoint') or not proxy_config['webshare_endpoint'].strip():
+                proxy_errors.append("Webshare endpoint not configured or empty")
         
         if proxy_errors:
             errors['proxy'] = proxy_errors
