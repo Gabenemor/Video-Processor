@@ -1,0 +1,78 @@
+# Google Cloud Build configuration for deploying to Cloud Run
+
+steps:
+# Step 1: Build the Docker image
+# This step uses the 'cloud-build-local' builder to build the Docker image
+# from the Dockerfile in the current directory.
+# The image is tagged with the commit SHA and pushed to Google Container Registry (GCR).
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/video-processor:$COMMIT_SHA', '.']
+
+# Step 2: Push the Docker image to Google Container Registry
+# This step pushes the built Docker image to GCR, making it available for Cloud Run.
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/video-processor:$COMMIT_SHA']
+
+# Step 3: Deploy the image to Cloud Run
+# This step deploys the Docker image to Cloud Run. 
+# It specifies the service name, region, and sets environment variables.
+# IMPORTANT: Environment variables should be managed securely in Cloud Run secrets or directly in the Cloud Run service settings.
+# For demonstration, we are listing them here. In a real production scenario, consider Cloud Secret Manager.
+- name: 'gcr.io/google.com/cloudsdk/cloud-sdk'
+  args: [
+      'gcloud',
+      'run',
+      'deploy',
+      'video-processor',
+      '--image',
+      'gcr.io/$PROJECT_ID/video-processor:$COMMIT_SHA',
+      '--region',
+      'us-central1', # Specify your desired region here
+      '--platform',
+      'managed',
+      '--allow-unauthenticated', # Change to '--no-allow-unauthenticated' for private service
+      '--port',
+      '5000',
+      '--set-env-vars',
+      'FLASK_SECRET_KEY=${_FLASK_SECRET_KEY}',
+      'SUPABASE_URL=${_SUPABASE_URL}',
+      'SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}',
+      'SUPABASE_BUCKET_NAME=${_SUPABASE_BUCKET_NAME}',
+      'WEBSHARE_USERNAME=${_WEBSHARE_USERNAME}',
+      'WEBSHARE_PASSWORD=${_WEBSHARE_PASSWORD}',
+      'WEBSHARE_ENDPOINT=${_WEBSHARE_ENDPOINT}',
+      'USE_PROXY_FOR_INFO_EXTRACTION=${_USE_PROXY_FOR_INFO_EXTRACTION}',
+      'VIDEO_DOWNLOAD_DIR=/tmp/video_downloads',
+      'MAX_FILE_SIZE=1073741824',
+      'ALLOWED_FORMATS=mp4,avi,mov,wmv,flv,webm,mkv',
+      'VIDEO_QUALITY=best[height<=720]/best',
+      'LOG_LEVEL=INFO',
+      'LOG_FILE=/dev/stderr' # Log to stderr for Cloud Run logging
+  ]
+
+# Define substitutions for sensitive environment variables
+# These values should be passed as build arguments or retrieved from Secret Manager
+# For Cloud Build, it's recommended to use Secret Manager for sensitive data.
+# Example: https://cloud.google.com/build/docs/securing-builds/use-secrets
+substitutions:
+  _FLASK_SECRET_KEY: "YOUR_FLASK_SECRET_KEY"
+  _SUPABASE_URL: "YOUR_SUPABASE_URL"
+  _SUPABASE_SERVICE_ROLE_KEY: "YOUR_SUPABASE_SERVICE_ROLE_KEY"
+  _SUPABASE_BUCKET_NAME: "processed-videos"
+  _WEBSHARE_USERNAME: "YOUR_WEBSHARE_USERNAME"
+  _WEBSHARE_PASSWORD: "YOUR_WEBSHARE_PASSWORD"
+  _WEBSHARE_ENDPOINT: "rotating-residential.webshare.io:9000"
+  _USE_PROXY_FOR_INFO_EXTRACTION: "true"
+
+# Output the image name for traceability
+images:
+- 'gcr.io/$PROJECT_ID/video-processor:$COMMIT_SHA'
+
+# Note on environment variables:
+# For production, it is highly recommended to use Google Cloud Secret Manager
+# to store sensitive environment variables (like API keys and passwords).
+# You can then grant Cloud Build access to these secrets and reference them in your cloudbuild.yaml.
+# Example of using Secret Manager in Cloud Build:
+# https://cloud.google.com/build/docs/securing-builds/use-secrets
+
+
