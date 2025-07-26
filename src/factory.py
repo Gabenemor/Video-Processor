@@ -1,8 +1,8 @@
 """Storage factory for creating storage provider instances."""
 
 from typing import Dict, Any, Type
-from base import BaseStorage, StorageError
-from supabase_storage import SupabaseStorage
+from .base import BaseStorage, StorageError
+from .supabase_storage import SupabaseStorage
 
 
 class StorageFactory:

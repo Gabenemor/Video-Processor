@@ -310,4 +310,3 @@ class VideoDownloadError(Exception):
         if self.error_code:
             parts.append(f"Code: {self.error_code}")
         return " | ".join(parts)
-

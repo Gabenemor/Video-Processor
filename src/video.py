@@ -9,9 +9,9 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.exceptions import BadRequest
 import logging
 
-from video_downloader import VideoDownloader, VideoDownloadError
-from factory import StorageFactory
-from base import StorageError
+from .video_downloader import VideoDownloader, VideoDownloadError
+from .factory import StorageFactory
+from .base import StorageError
 
 logger = logging.getLogger(__name__)
 

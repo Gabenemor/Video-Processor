@@ -6,8 +6,8 @@ from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 # from src.models.user import db
 # from src.routes.user import user_bp
-from video import video_bp, init_video_services
-from config import init_config
+from src.video import video_bp, init_video_services
+from src.config import init_config
 
 # Initialize configuration
 config = init_config()
