@@ -42,7 +42,7 @@ if config_errors:
 else:
     try:
         # Initialize video services with full configuration
-        init_video_services(config.get_all())
+        init_video_services(config.to_dict())
         logger.info("Video services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize video services: {e}")
