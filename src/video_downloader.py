@@ -39,12 +39,12 @@ class VideoDownloader:
     
     def _get_proxy_url(self) -> Optional[str]:
         """Generate proxy URL for Webshare.io if configured."""
-        if not self.proxy_config.get('use_proxy_for_info_extraction', False):
+        if not self.proxy_config.get('use_proxy', False):
             return None
             
         username = self.proxy_config.get('webshare_username')
         password = self.proxy_config.get('webshare_password')
-        endpoint = self.proxy_config.get('webshare_endpoint', 'rotating-residential.webshare.io:9000')
+        endpoint = self.proxy_config.get('webshare_endpoint', 'p.webshare.io:80')
         
         if not username or not password:
             logger.warning("Proxy credentials not configured, skipping proxy usage")
@@ -195,9 +195,13 @@ class VideoDownloader:
         
         options['progress_hooks'] = [progress_hook]
         
-        # Do NOT use proxy for actual download to save bandwidth
-        # Only use proxy for initial info extraction if needed
-        logger.info("Starting video download (without proxy to save bandwidth)")
+        if self.proxy_config.get('use_proxy', False):
+            proxy_url = self._get_proxy_url()
+            if proxy_url:
+                options['proxy'] = proxy_url
+                logger.info("Using proxy for video download")
+        else:
+            logger.info("Starting video download (without proxy)")
         
         try:
             with yt_dlp.YoutubeDL(options) as ydl:
