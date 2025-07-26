@@ -28,5 +28,5 @@ EXPOSE 8080
 # Run the application
 # Cloud Run automatically sets the PORT environment variable.
 # We use 0.0.0.0 to listen on all available network interfaces.
-# The Flask app is configured to read FLASK_PORT from environment variables.
-CMD ["python", "src/main.py"]
+# The Flask app is configured to read the PORT from environment variables.
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "src.main:app"]
