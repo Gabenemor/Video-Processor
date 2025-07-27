@@ -112,17 +112,27 @@ class VideoDownloader:
             else:
                 logger.warning("Proxy usage requested but not configured properly")
         
-        # Enhanced options for YouTube
+        # Enhanced options for YouTube with PO token and client fallback
         if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
+            youtube_extractor_args = {
+                'skip': ['dash', 'hls'],
+                'player_skip': ['js'],
+                'player_client': ['mweb', 'android', 'web'],  # Start with mweb for better reliability
+                'comment_sort': ['top'],
+                'max_comments': ['0']
+            }
+            
+            # Add PO token if available
+            po_token = self.proxy_config.get('youtube_po_token')
+            if po_token:
+                youtube_extractor_args['po_token'] = po_token
+            else:
+                # Use formats that don't require PO token as fallback
+                youtube_extractor_args['formats'] = 'missing_pot'
+            
             options.update({
                 'extractor_args': {
-                    'youtube': {
-                        'skip': ['dash', 'hls'],
-                        'player_skip': ['js'],
-                        'player_client': ['android', 'web'],
-                        'comment_sort': ['top'],
-                        'max_comments': ['0']
-                    }
+                    'youtube': youtube_extractor_args
                 },
                 'sleep_interval': random.randint(1, 2),
                 'max_sleep_interval': 5,

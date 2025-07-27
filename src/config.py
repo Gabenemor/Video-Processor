@@ -52,6 +52,7 @@ class Config:
                 'webshare_password': os.getenv('WEBSHARE_PASSWORD'),
                 'webshare_endpoint': os.getenv('WEBSHARE_ENDPOINT', 'p.webshare.io:80'),
                 'use_proxy': os.getenv('USE_PROXY', 'true').lower() == 'true',
+                'youtube_po_token': os.getenv('YOUTUBE_PO_TOKEN'),  # PO token for YouTube
             },
             
             # Timeout configuration

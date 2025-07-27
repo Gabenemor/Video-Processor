@@ -55,14 +55,40 @@ class TaskProcessor:
             logger.error(f"Failed to connect to database: {e}")
             return None
 
-    def _send_webhook(self, url: str, payload: Dict[str, Any]):
-        """Send a webhook notification."""
-        try:
-            response = requests.post(url, json=payload, timeout=10)
-            response.raise_for_status()
-            logger.info(f"Webhook sent successfully to {url}")
-        except requests.RequestException as e:
-            logger.error(f"Failed to send webhook to {url}: {e}")
+    def _send_webhook(self, url: str, payload: Dict[str, Any], max_retries: int = 3):
+        """Send a webhook notification with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                # Add authorization header for Supabase Edge Functions
+                headers = {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Video-Processor/1.0'
+                }
+                
+                # Add Authorization header if it's a Supabase function
+                if 'supabase.co/functions' in url:
+                    supabase_anon_key = config.get('storage.config.key')
+                    if supabase_anon_key:
+                        headers['Authorization'] = f'Bearer {supabase_anon_key}'
+                
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                response.raise_for_status()
+                logger.info(f"Webhook sent successfully to {url} (attempt {attempt + 1})")
+                return True
+                
+            except requests.RequestException as e:
+                logger.warning(f"Webhook attempt {attempt + 1} failed to {url}: {e}")
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 2^attempt seconds
+                    wait_time = 2 ** attempt
+                    logger.info(f"Retrying webhook in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"All webhook attempts failed to {url}: {e}")
+                    # Don't raise exception - webhook failure shouldn't fail the task
+                    return False
+        
+        return False
 
     def _update_task_status(self, task_id: str, status: str, error_details: str = None, result: Dict[str, Any] = None):
         """Update task status in database."""
@@ -230,8 +256,11 @@ class TaskProcessor:
                 conn.close()
 
     async def _process_video_async(self, url: str, processing_id: str):
-        """Process video with enhanced timeout handling for each stage."""
+        """Process video with enhanced timeout handling and comprehensive fallback."""
         downloaded_files = []
+        warnings = []
+        partial_success = False
+        
         try:
             logger.info(f"[{processing_id}] Starting video processing for URL: {url}")
             
@@ -250,73 +279,113 @@ class TaskProcessor:
             downloaded_files = [f for f in [video_file, info_file, thumbnail_file] if f]
             logger.info(f"[{processing_id}] Downloaded {len(downloaded_files)} files")
 
-            # Stage 2: Upload files with timeout
+            # URL validation - check if processed URL matches requested URL
+            processed_url = video_info.get('webpage_url', '')
+            url_match = self._validate_url_match(url, processed_url)
+            if not url_match:
+                warning_msg = f"URL mismatch: requested {url}, processed {processed_url}"
+                warnings.append("url_mismatch")
+                logger.warning(f"[{processing_id}] {warning_msg}")
+
+            # Stage 2: Upload files with timeout and fallback handling
             logger.info(f"[{processing_id}] Stage 2: Uploading files to storage")
             
-            # Upload video file
+            # Upload video file (required)
             video_key = f"videos/{processing_id}/{os.path.basename(video_file)}"
             video_upload_result = await asyncio.wait_for(
                 self.storage_provider.upload_file(video_file, video_key, {
                     'processing_id': processing_id,
-                    'file_type': 'video'
+                    'file_type': 'video',
+                    'original_url': url,
+                    'processed_url': processed_url
                 }),
                 timeout=self.upload_timeout
             )
             logger.info(f"[{processing_id}] Video uploaded: {video_key}")
             
-            # Upload info file if available
+            # Upload info file with fallback
             info_key, info_upload_result = None, None
             if info_file:
-                info_key = f"videos/{processing_id}/{os.path.basename(info_file)}"
-                info_upload_result = await asyncio.wait_for(
-                    self.storage_provider.upload_file(info_file, info_key, {
-                        'processing_id': processing_id,
-                        'file_type': 'metadata'
-                    }),
-                    timeout=60  # Shorter timeout for small files
-                )
-                logger.info(f"[{processing_id}] Metadata uploaded: {info_key}")
+                try:
+                    info_key = f"videos/{processing_id}/{os.path.basename(info_file)}"
+                    info_upload_result = await asyncio.wait_for(
+                        self.storage_provider.upload_file(info_file, info_key, {
+                            'processing_id': processing_id,
+                            'file_type': 'metadata'
+                        }),
+                        timeout=60  # Shorter timeout for small files
+                    )
+                    logger.info(f"[{processing_id}] Metadata uploaded: {info_key}")
+                except Exception as e:
+                    logger.warning(f"[{processing_id}] Metadata upload failed: {str(e)}")
+                    warnings.append("metadata_upload_failed")
+                    partial_success = True
 
-            # Upload thumbnail if available
+            # Upload thumbnail with fallback
             thumbnail_key, thumbnail_upload_result = None, None
             if thumbnail_file:
-                thumbnail_key = f"videos/{processing_id}/{os.path.basename(thumbnail_file)}"
-                thumbnail_upload_result = await asyncio.wait_for(
-                    self.storage_provider.upload_file(thumbnail_file, thumbnail_key, {
-                        'processing_id': processing_id,
-                        'file_type': 'thumbnail'
-                    }),
-                    timeout=60  # Shorter timeout for small files
-                )
-                logger.info(f"[{processing_id}] Thumbnail uploaded: {thumbnail_key}")
+                try:
+                    thumbnail_key = f"videos/{processing_id}/{os.path.basename(thumbnail_file)}"
+                    thumbnail_upload_result = await asyncio.wait_for(
+                        self.storage_provider.upload_file(thumbnail_file, thumbnail_key, {
+                            'processing_id': processing_id,
+                            'file_type': 'thumbnail'
+                        }),
+                        timeout=60  # Shorter timeout for small files
+                    )
+                    logger.info(f"[{processing_id}] Thumbnail uploaded: {thumbnail_key}")
+                except Exception as e:
+                    logger.warning(f"[{processing_id}] Thumbnail upload failed: {str(e)}")
+                    warnings.append("thumbnail_upload_failed")
+                    partial_success = True
 
-            # Stage 3: Generate file URLs
+            # Stage 3: Generate file URLs with fallback
             logger.info(f"[{processing_id}] Stage 3: Generating file URLs")
             video_url = await asyncio.wait_for(
                 self.storage_provider.get_file_url(video_key),
                 timeout=30
             )
-            info_url = await asyncio.wait_for(
-                self.storage_provider.get_file_url(info_key),
-                timeout=30
-            ) if info_key else None
-            thumbnail_url = await asyncio.wait_for(
-                self.storage_provider.get_file_url(thumbnail_key),
-                timeout=30
-            ) if thumbnail_key else None
+            
+            info_url = None
+            if info_key:
+                try:
+                    info_url = await asyncio.wait_for(
+                        self.storage_provider.get_file_url(info_key),
+                        timeout=30
+                    )
+                except Exception as e:
+                    logger.warning(f"[{processing_id}] Info URL generation failed: {str(e)}")
+                    warnings.append("info_url_generation_failed")
 
+            thumbnail_url = None
+            if thumbnail_key:
+                try:
+                    thumbnail_url = await asyncio.wait_for(
+                        self.storage_provider.get_file_url(thumbnail_key),
+                        timeout=30
+                    )
+                except Exception as e:
+                    logger.warning(f"[{processing_id}] Thumbnail URL generation failed: {str(e)}")
+                    warnings.append("thumbnail_url_generation_failed")
+
+            # Enhanced result with fallback information
             result = {
                 'success': True,
                 'processing_id': processing_id,
+                'original_url': url,
+                'processed_url': processed_url,
+                'url_match': url_match,
                 'video_info': video_info,
                 'storage': {
                     'video': {'key': video_key, 'url': video_url, 'size': video_upload_result.get('size')},
                     'metadata': {'key': info_key, 'url': info_url, 'size': info_upload_result.get('size')} if info_key else None,
                     'thumbnail': {'key': thumbnail_key, 'url': thumbnail_url, 'size': thumbnail_upload_result.get('size')} if thumbnail_key else None,
-                }
+                },
+                'warnings': warnings,
+                'partial_success': partial_success
             }
             
-            logger.info(f"[{processing_id}] Processing completed successfully")
+            logger.info(f"[{processing_id}] Processing completed successfully (warnings: {len(warnings)})")
             return result
             
         except asyncio.TimeoutError as e:
@@ -329,6 +398,62 @@ class TaskProcessor:
             if downloaded_files:
                 logger.info(f"[{processing_id}] Cleaning up {len(downloaded_files)} downloaded files")
                 self.video_downloader.cleanup_files(downloaded_files)
+
+    def _validate_url_match(self, original_url: str, processed_url: str) -> bool:
+        """Validate if the processed URL matches the original request."""
+        if not original_url or not processed_url:
+            return False
+        
+        # Normalize URLs for comparison
+        original_clean = original_url.lower().strip()
+        processed_clean = processed_url.lower().strip()
+        
+        # Extract video IDs for comparison
+        original_id = self._extract_video_id(original_clean)
+        processed_id = self._extract_video_id(processed_clean)
+        
+        # If we can extract IDs, compare them
+        if original_id and processed_id:
+            return original_id == processed_id
+        
+        # Fallback to domain comparison
+        return self._extract_domain(original_clean) == self._extract_domain(processed_clean)
+    
+    def _extract_video_id(self, url: str) -> str:
+        """Extract video ID from URL."""
+        import re
+        
+        # YouTube patterns
+        youtube_patterns = [
+            r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]+)',
+            r'youtube\.com/v/([a-zA-Z0-9_-]+)'
+        ]
+        
+        # TikTok patterns
+        tiktok_patterns = [
+            r'tiktok\.com/@[^/]+/video/(\d+)',
+            r'tiktok\.com/t/([a-zA-Z0-9]+)'
+        ]
+        
+        for pattern in youtube_patterns + tiktok_patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        
+        return None
+    
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain from URL."""
+        import re
+        
+        match = re.search(r'://([^/]+)', url)
+        if match:
+            domain = match.group(1)
+            # Remove 'www.' and 'm.' prefixes
+            domain = re.sub(r'^(www\.|m\.)', '', domain)
+            return domain
+        
+        return url
 
 def run_worker():
     """Main worker loop."""
