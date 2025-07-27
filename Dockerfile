@@ -22,14 +22,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code into the container
 COPY src/ ./src/
 
+# Copy the start script into the container
+COPY start.sh .
+RUN chmod +x start.sh
+
 # Create the directory for video downloads
 RUN mkdir -p /tmp/video_downloads
 
 # Expose the port the app runs on
 EXPOSE 8080
 
-# Run the application
-# Cloud Run automatically sets the PORT environment variable.
-# We use 0.0.0.0 to listen on all available network interfaces.
-# The Flask app is configured to read the PORT from environment variables.
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "src.main:app"]
+# Run the start script
+CMD ["./start.sh"]

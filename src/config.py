@@ -59,6 +59,11 @@ class Config:
                 'level': os.getenv('LOG_LEVEL', 'INFO'),
                 'format': os.getenv('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s'),
                 'file': os.getenv('LOG_FILE', None),
+            },
+
+            # Database configuration
+            'database': {
+                'url': os.getenv('DATABASE_URL', 'postgresql://postgres:M64LX!YcFtzBBx$@db.tnjpitcbpfuwtzakayat.supabase.co:5432/postgres'),
             }
         }
         
@@ -165,6 +170,10 @@ class Config:
     def get_logging_config(self) -> Dict[str, Any]:
         """Get logging configuration."""
         return self.get('logging', {})
+
+    def get_database_config(self) -> Dict[str, Any]:
+        """Get database configuration."""
+        return self.get('database', {})
     
     def validate_config(self) -> Dict[str, list]:
         """Validate configuration and return any errors.
@@ -201,6 +210,15 @@ class Config:
         if storage_errors:
             errors['storage'] = storage_errors
         
+        # Validate database configuration
+        db_errors = []
+        db_config = self.get_database_config()
+        if not db_config.get('url'):
+            db_errors.append("Database URL not configured")
+        
+        if db_errors:
+            errors['database'] = db_errors
+
         # Validate proxy configuration
         proxy_errors = []
         proxy_config = self.get_proxy_config()
