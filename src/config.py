@@ -54,6 +54,15 @@ class Config:
                 'use_proxy': os.getenv('USE_PROXY', 'true').lower() == 'true',
             },
             
+            # Timeout configuration
+            'timeout': {
+                'info_extraction': int(os.getenv('INFO_EXTRACTION_TIMEOUT', '300')),  # 5 minutes
+                'download': int(os.getenv('DOWNLOAD_TIMEOUT', '900')),  # 15 minutes
+                'upload': int(os.getenv('UPLOAD_TIMEOUT', '600')),  # 10 minutes
+                'socket': int(os.getenv('SOCKET_TIMEOUT', '30')),  # 30 seconds
+                'max_retries': int(os.getenv('MAX_RETRIES', '2')),  # Maximum retries
+            },
+            
             # Logging configuration
             'logging': {
                 'level': os.getenv('LOG_LEVEL', 'INFO'),
