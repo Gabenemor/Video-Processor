@@ -184,7 +184,15 @@ class TaskProcessor:
 
             if task:
                 task_id, video_url, webhook_url = task
-                logger.info(f"Processing task {task_id} for URL: {video_url}")
+                
+                # Extract base UUID from composite task ID for processing
+                processing_id = self._extract_processing_id(task_id)
+                
+                logger.info(f"Processing task {task_id} (processing_id: {processing_id}) for URL: {video_url}")
+                
+                # Validate that the task URL matches the composite ID
+                if not self._validate_task_url_match(task_id, video_url):
+                    logger.warning(f"Task {task_id} URL mismatch detected. Expected URL hash in task ID.")
                 
                 try:
                     # Run the async processing logic with timeout
@@ -454,6 +462,42 @@ class TaskProcessor:
             return domain
         
         return url
+    
+    def _extract_processing_id(self, task_id: str) -> str:
+        """Extract the base processing ID from a composite task ID."""
+        # Split composite ID: {uuid}-{url_hash} -> {uuid}
+        parts = task_id.split('-')
+        if len(parts) >= 5:  # UUID has 4 hyphens, plus our added hash
+            # Rejoin all parts except the last one (url hash)
+            return '-'.join(parts[:-1])
+        else:
+            # Fallback for non-composite IDs
+            return task_id
+    
+    def _validate_task_url_match(self, task_id: str, url: str) -> bool:
+        """Validate that the URL matches the hash in the composite task ID."""
+        # Extract expected URL hash from task ID
+        parts = task_id.split('-')
+        if len(parts) < 5:  # Not a composite ID
+            return True  # Skip validation for old format
+        
+        expected_hash = parts[-1]  # Last part is the URL hash
+        
+        # Generate hash from current URL
+        actual_hash = self._generate_url_hash(url)
+        
+        return expected_hash == actual_hash
+    
+    def _generate_url_hash(self, url: str) -> str:
+        """Generate a short hash from URL for task ID uniqueness."""
+        import hashlib
+        
+        # Normalize URL for consistent hashing
+        normalized_url = url.lower().strip()
+        
+        # Create MD5 hash and take first 8 characters
+        url_hash = hashlib.md5(normalized_url.encode()).hexdigest()[:8]
+        return url_hash
 
 def run_worker():
     """Main worker loop."""

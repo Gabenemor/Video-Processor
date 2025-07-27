@@ -117,6 +117,22 @@ def get_video_info():
         }), 500
 
 
+def _generate_url_hash(url: str) -> str:
+    """Generate a short hash from URL for task ID uniqueness."""
+    import hashlib
+    
+    # Normalize URL for consistent hashing
+    normalized_url = url.lower().strip()
+    
+    # Create MD5 hash and take first 8 characters
+    url_hash = hashlib.md5(normalized_url.encode()).hexdigest()[:8]
+    return url_hash
+
+def _create_composite_task_id(base_id: str, url: str) -> str:
+    """Create a composite task ID from base UUID and URL hash."""
+    url_hash = _generate_url_hash(url)
+    return f"{base_id}-{url_hash}"
+
 @video_bp.route('/videos/process-async', methods=['POST'])
 def process_video_async():
     """Accepts a video processing task and queues it."""
@@ -124,24 +140,68 @@ def process_video_async():
     if not data or 'url' not in data or 'id' not in data:
         return jsonify({'error': 'URL and id are required'}), 400
 
-    task_id = data['id']
+    base_id = data['id']
     video_url = data['url']
     webhook_url = data.get('webhook')
+    
+    # Create composite task ID for unique tracking per URL
+    composite_task_id = _create_composite_task_id(base_id, video_url)
+    url_hash = _generate_url_hash(video_url)
 
     conn = None
     try:
         conn = psycopg2.connect(db_url)
         with conn.cursor() as cur:
+            # Store composite ID in database for unique tracking
+            # The result field will contain the composite ID mapping
+            initial_result = {
+                'composite_id': composite_task_id,
+                'base_id': base_id,
+                'url_hash': url_hash,
+                'video_url': video_url
+            }
+            
             cur.execute(
-                "INSERT INTO tasks (id, video_url, webhook_url, status) VALUES (%s, %s, %s, 'queued')",
-                (task_id, video_url, webhook_url)
+                "INSERT INTO tasks (id, video_url, webhook_url, status, result) VALUES (%s, %s, %s, 'queued', %s)",
+                (composite_task_id, video_url, webhook_url, psycopg2.extras.Json(initial_result))
             )
             conn.commit()
-        logger.info(f"Task {task_id} for URL {video_url} has been queued.")
-        return jsonify({'status': 'accepted', 'task_id': task_id}), 202
+        logger.info(f"Task {composite_task_id} for URL {video_url} has been queued.")
+        return jsonify({
+            'status': 'accepted', 
+            'task_id': composite_task_id,
+            'original_id': base_id,
+            'url_hash': url_hash
+        }), 202
     except psycopg2.Error as e:
-        logger.error(f"Database error while queueing task {task_id}: {e}")
-        return jsonify({'error': 'Failed to queue task'}), 500
+        # If composite ID fails due to UUID constraint, fall back to base ID
+        logger.warning(f"Composite ID failed, trying base ID: {e}")
+        try:
+            with conn.cursor() as cur:
+                # Use base ID with URL hash in result for tracking
+                result_data = {
+                    'composite_id': composite_task_id,
+                    'base_id': base_id,
+                    'url_hash': url_hash,
+                    'video_url': video_url
+                }
+                
+                cur.execute(
+                    "INSERT INTO tasks (id, video_url, webhook_url, status, result) VALUES (%s, %s, %s, 'queued', %s)",
+                    (base_id, video_url, webhook_url, psycopg2.extras.Json(result_data))
+                )
+                conn.commit()
+            logger.info(f"Task {base_id} (composite: {composite_task_id}) for URL {video_url} has been queued.")
+            return jsonify({
+                'status': 'accepted', 
+                'task_id': composite_task_id,
+                'db_id': base_id,
+                'original_id': base_id,
+                'url_hash': url_hash
+            }), 202
+        except psycopg2.Error as e2:
+            logger.error(f"Database error while queueing task {base_id}: {e2}")
+            return jsonify({'error': 'Failed to queue task'}), 500
     finally:
         if conn:
             conn.close()
