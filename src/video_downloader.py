@@ -10,6 +10,7 @@ import yt_dlp
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import logging
+from src.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +47,12 @@ class VideoDownloader:
             'writesubtitles': False,  # Skip subtitles for now
             'ignoreerrors': False,
             'no_warnings': False,
-            # Timeout configurations
-            'socket_timeout': 30,
-            'http_chunk_size': 10485760,  # 10MB chunks
-            'fragment_retries': 3,
-            'retries': 3,
+            # Timeout configurations - optimized for faster downloads
+            'socket_timeout': 15,         # Reduced from 30s for faster failure detection
+            'http_chunk_size': 52428800,  # 50MB chunks (from 10MB) for better throughput
+            'concurrent_fragments': 8,    # Download 8 fragments simultaneously
+            'fragment_retries': 2,        # Reduced retries
+            'retries': 2,                 # Reduced retries
             # Anti-bot detection
             'user_agent': random.choice(self.user_agents),
             'sleep_interval': 1,
@@ -92,10 +94,46 @@ class VideoDownloader:
         # Use proxy if configured
         return self.proxy_config.get('use_proxy', False)
     
+    def _check_aria2c_available(self) -> bool:
+        """Check if aria2c is available on the system."""
+        try:
+            import subprocess
+            result = subprocess.run(['aria2c', '--version'], 
+                                  stdout=subprocess.PIPE, 
+                                  stderr=subprocess.PIPE, 
+                                  check=False)
+            return result.returncode == 0
+        except Exception as e:
+            logger.warning(f"Failed to check for aria2c: {e}")
+            return False
+    
     def _get_enhanced_options(self, url: str, use_proxy: bool = None) -> Dict[str, Any]:
         """Get enhanced yt-dlp options with proxy and timeout handling."""
         options = {**self.default_options}
         
+        # Get video config settings
+        video_config = get_config().get_video_config()
+        use_aria2c = video_config.get('use_aria2c', True)
+        aria2c_args = video_config.get('aria2c_args', '--max-connection-per-server=8 --split=8 --min-split-size=1M')
+        
+        # Check and configure aria2c if available and enabled in config
+        if use_aria2c and self._check_aria2c_available():
+            logger.info("aria2c detected, using as external downloader for faster speeds")
+            options.update({
+                'external_downloader': 'aria2c',
+                'external_downloader_args': aria2c_args.split()
+            })
+        else:
+            if use_aria2c and not self._check_aria2c_available():
+                logger.warning("aria2c enabled in config but not available, falling back to native downloader")
+            logger.info("Using native downloader with optimized settings")
+            
+            # Apply optimized native downloader settings from config
+            options.update({
+                'http_chunk_size': video_config.get('http_chunk_size', 52428800),  # 50MB chunks
+                'concurrent_fragments': video_config.get('concurrent_fragments', 8)
+            })
+            
         # Rotate user agent for each request
         options['user_agent'] = random.choice(self.user_agents)
         

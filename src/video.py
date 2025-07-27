@@ -142,7 +142,7 @@ def process_video_async():
 
     base_id = data['id']
     video_url = data['url']
-    webhook_url = data.get('webhook')
+    # webhook_url parameter removed
     
     # Create composite task ID for unique tracking per URL
     composite_task_id = _create_composite_task_id(base_id, video_url)
@@ -162,8 +162,8 @@ def process_video_async():
             }
             
             cur.execute(
-                "INSERT INTO tasks (id, video_url, webhook_url, status, result) VALUES (%s, %s, %s, 'queued', %s)",
-                (composite_task_id, video_url, webhook_url, psycopg2.extras.Json(initial_result))
+                "INSERT INTO tasks (id, video_url, status, result) VALUES (%s, %s, 'queued', %s)",
+                (composite_task_id, video_url, psycopg2.extras.Json(initial_result))
             )
             conn.commit()
         logger.info(f"Task {composite_task_id} for URL {video_url} has been queued.")
@@ -187,8 +187,8 @@ def process_video_async():
                 }
                 
                 cur.execute(
-                    "INSERT INTO tasks (id, video_url, webhook_url, status, result) VALUES (%s, %s, %s, 'queued', %s)",
-                    (base_id, video_url, webhook_url, psycopg2.extras.Json(result_data))
+                    "INSERT INTO tasks (id, video_url, status, result) VALUES (%s, %s, 'queued', %s)",
+                    (base_id, video_url, psycopg2.extras.Json(result_data))
                 )
                 conn.commit()
             logger.info(f"Task {base_id} (composite: {composite_task_id}) for URL {video_url} has been queued.")

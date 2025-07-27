@@ -4,10 +4,11 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies required by yt-dlp (e.g., ffmpeg)
-# yt-dlp often needs ffmpeg for post-processing, even if not explicitly used in Python code
+# Install system dependencies required by yt-dlp (e.g., ffmpeg, aria2c)
+# yt-dlp often needs ffmpeg for post-processing, and aria2c for faster downloads
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    aria2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container

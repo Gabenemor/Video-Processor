@@ -25,6 +25,12 @@ SUPABASE_BUCKET_NAME=processed-videos
 WEBSHARE_USERNAME=your-webshare-username
 WEBSHARE_PASSWORD=your-webshare-password
 USE_PROXY_FOR_INFO_EXTRACTION=true
+
+# Download Optimization Settings
+USE_ARIA2C=true                         # Enable aria2c external downloader
+ARIA2C_ARGS="--max-connection-per-server=8 --split=8 --min-split-size=1M"
+CONCURRENT_FRAGMENTS=8                  # For yt-dlp internal downloader
+HTTP_CHUNK_SIZE=52428800               # 50MB chunks (default)
 ```
 
 ### 2. Set Up Supabase Storage
@@ -93,6 +99,11 @@ curl -X POST http://localhost:5000/api/videos/process \
 - **Request tracking** with unique IDs
 - **Detailed error messages** with stack traces
 - **Comprehensive monitoring** of all operations
+
+### ✅ Optimized Download System
+- **aria2c integration** for faster multi-connection downloads
+- **Adaptive fallback** to optimized yt-dlp when aria2c unavailable
+- **Configurable parameters** via environment variables
 
 ### ✅ Flexible Configuration
 - **Environment-based** configuration

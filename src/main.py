@@ -45,7 +45,7 @@ else:
         init_video_services(config.to_dict())
         logger.info("Video services initialized successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize video services: {e}")
+        logger.error(f"Failed to initialize services: {e}")
 
 # app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(video_bp, url_prefix='/api')

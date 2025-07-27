@@ -12,6 +12,7 @@ from src.config import get_config
 from src.video_downloader import VideoDownloader, VideoDownloadError
 from src.factory import StorageFactory
 from src.base import StorageError
+from src.direct_processor import DirectProcessor
 
 # Initialize configuration
 config = get_config()
@@ -25,6 +26,10 @@ class TaskProcessor:
         self.db_url = config.get_database_config().get('url')
         self.video_downloader = self._init_video_downloader()
         self.storage_provider = self._init_storage_provider()
+        
+        # Initialize direct processor
+        self.direct_processor = DirectProcessor()
+        self.use_direct_processing = config.get('video.use_direct_processing', True)
         
         # Timeout configurations from config
         timeout_config = config.get('timeout', {})
@@ -48,7 +53,7 @@ class TaskProcessor:
         return StorageFactory.create_storage(provider_name, provider_config)
 
     def _get_db_connection(self):
-        """Establish a database connection."""
+        """Establish a direct database connection."""
         try:
             return psycopg2.connect(self.db_url)
         except psycopg2.Error as e:
@@ -269,8 +274,22 @@ class TaskProcessor:
         warnings = []
         partial_success = False
         
+        # Check if direct processing is enabled
+        if self.use_direct_processing:
+            logger.info(f"[{processing_id}] Using direct streaming processor for URL: {url}")
+            try:
+                # Use direct processor for streaming upload
+                return await asyncio.wait_for(
+                    self.direct_processor.process_url(url, processing_id),
+                    timeout=self.download_timeout + self.upload_timeout + 60
+                )
+            except Exception as e:
+                logger.warning(f"[{processing_id}] Direct processing failed, falling back to standard method: {str(e)}")
+                warnings.append("direct_processing_failed")
+                # Fall through to standard processing
+        
         try:
-            logger.info(f"[{processing_id}] Starting video processing for URL: {url}")
+            logger.info(f"[{processing_id}] Starting standard video processing for URL: {url}")
             
             # Stage 1: Download video with timeout
             logger.info(f"[{processing_id}] Stage 1: Downloading video")
@@ -376,10 +395,14 @@ class TaskProcessor:
                     logger.warning(f"[{processing_id}] Thumbnail URL generation failed: {str(e)}")
                     warnings.append("thumbnail_url_generation_failed")
 
+            # Extract the original base ID from the composite task ID
+            base_id = self._extract_base_id(processing_id)
+            
             # Enhanced result with fallback information
             result = {
                 'success': True,
                 'processing_id': processing_id,
+                'original_id': base_id,  # Add the original ID
                 'original_url': url,
                 'processed_url': processed_url,
                 'url_match': url_match,
@@ -473,6 +496,35 @@ class TaskProcessor:
         else:
             # Fallback for non-composite IDs
             return task_id
+            
+    def _extract_base_id(self, task_id: str) -> str:
+        """Extract the original base ID from task ID or database.
+        
+        This gets the raw ID that was originally provided with the URL request.
+        For composite IDs, it removes the URL hash component.
+        """
+        # First check if this is a composite ID
+        parts = task_id.split('-')
+        if len(parts) >= 5:  # UUID has 4 hyphens, plus our added hash
+            # Check if we can get more information from the database
+            conn = self._get_db_connection()
+            if conn:
+                try:
+                    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                        cur.execute("SELECT result FROM tasks WHERE id = %s", (task_id,))
+                        row = cur.fetchone()
+                        if row and row['result']:
+                            # Try to get base_id from the stored result
+                            if isinstance(row['result'], dict) and 'base_id' in row['result']:
+                                return row['result']['base_id']
+                finally:
+                    conn.close()
+            
+            # If we couldn't get it from DB, just return the ID without hash
+            return '-'.join(parts[:-1])
+        else:
+            # Not a composite ID, return as is
+            return task_id
     
     def _validate_task_url_match(self, task_id: str, url: str) -> bool:
         """Validate that the URL matches the hash in the composite task ID."""
@@ -509,7 +561,7 @@ def run_worker():
         except Exception as e:
             logger.error(f"An unexpected error occurred in the worker loop: {e}")
         # Sleep for a short interval to prevent busy-waiting
-        time.sleep(5)
+        time.sleep(1)  # Reduced from 5s for faster task pickup
 
 if __name__ == "__main__":
     # This allows running the worker directly for testing

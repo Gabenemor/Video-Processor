@@ -44,6 +44,14 @@ class Config:
                 'max_file_size': int(os.getenv('MAX_FILE_SIZE', '1073741824')),  # 1GB default
                 'allowed_formats': os.getenv('ALLOWED_FORMATS', 'mp4,avi,mov,wmv,flv,webm,mkv').split(','),
                 'quality': os.getenv('VIDEO_QUALITY', 'best[height<=720]/best'),
+                # Download optimization settings
+                'concurrent_fragments': int(os.getenv('CONCURRENT_FRAGMENTS', '8')),
+                'http_chunk_size': int(os.getenv('HTTP_CHUNK_SIZE', '52428800')),  # 50MB chunks
+                'use_aria2c': os.getenv('USE_ARIA2C', 'true').lower() == 'true',
+                'aria2c_args': os.getenv('ARIA2C_ARGS', '--max-connection-per-server=8 --split=8 --min-split-size=1M'),
+                # Direct streaming settings
+                'use_direct_processing': os.getenv('USE_DIRECT_PROCESSING', 'true').lower() == 'true',
+                'streaming_chunk_size': int(os.getenv('STREAMING_CHUNK_SIZE', '8388608')),  # 8MB chunks
             },
             
             # Proxy configuration
@@ -74,6 +82,10 @@ class Config:
             # Database configuration
             'database': {
                 'url': os.getenv('DATABASE_URL', 'postgresql://postgres:M64LX!YcFtzBBx$@db.tnjpitcbpfuwtzakayat.supabase.co:5432/postgres'),
+                'min_connections': int(os.getenv('DB_MIN_CONNECTIONS', '2')),
+                'max_connections': int(os.getenv('DB_MAX_CONNECTIONS', '10')),
+                'pool_enabled': os.getenv('DB_POOL_ENABLED', 'true').lower() == 'true',
+                'worker_count': int(os.getenv('WORKER_COUNT', '2')),
             }
         }
         
